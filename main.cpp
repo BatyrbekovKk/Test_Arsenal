@@ -18,7 +18,6 @@ enum Mode {
 };
 
 Mode mode = ImageToBinary;
-
 void convertImageToBinary(const QString &imagePath, const QString &outputFilePath) {
     QImage image(imagePath);
     if (image.isNull()) {
@@ -27,12 +26,17 @@ void convertImageToBinary(const QString &imagePath, const QString &outputFilePat
     }
 
     QFile outputFile(outputFilePath);
-    if (!outputFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    if (!outputFile.open(QIODevice::WriteOnly)) {
         QMessageBox::critical(nullptr, "Ошибка", "Не удалось открыть файл для записи.");
         return;
     }
 
     QDataStream stream(&outputFile);
+
+    // Сохраняем размеры изображения
+    stream << image.width() << image.height();
+
+    // Сохраняем данные пикселей
     for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
             QColor color = image.pixelColor(x, y);
@@ -45,21 +49,22 @@ void convertImageToBinary(const QString &imagePath, const QString &outputFilePat
 
 void convertBinaryToImage(const QString &binaryFilePath, const QString &outputFolderPath) {
     QFile binaryFile(binaryFilePath);
-    if (!binaryFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (!binaryFile.open(QIODevice::ReadOnly)) {
         QMessageBox::critical(nullptr, "Ошибка", "Не удалось открыть файл с двоичным кодом.");
         return;
     }
 
-    QByteArray byteArray = binaryFile.readAll();
-    int width = 1326; // возьмем ширину изображения 1000
-    int height = byteArray.size() / (width * 3); // Предполагаем формат RGB
+    QDataStream stream(&binaryFile);
+
+    int width, height;
+    stream >> width >> height; // Читаем размеры изображения
 
     QImage image(width, height, QImage::Format_RGB32);
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
-            int index = y * width * 3 + x * 3;
-            QRgb pixelValue = qRgb(byteArray[index], byteArray[index + 1], byteArray[index + 2]);
-            image.setPixel(x, y, pixelValue);
+            int red, green, blue;
+            stream >> red >> green >> blue;
+            image.setPixelColor(x, y, QColor(red, green, blue));
         }
     }
 
@@ -72,6 +77,7 @@ void convertBinaryToImage(const QString &binaryFilePath, const QString &outputFo
     QMessageBox::information(nullptr, "Успех", "Двоичный код успешно преобразован в изображение и сохранен.");
 }
 
+
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -79,7 +85,6 @@ int main(int argc, char *argv[])
     QMainWindow window;
     window.setWindowTitle("Image Converter");
 
-    // Создаем и настраиваем виджеты GUI
     QLabel *inputLabel = new QLabel("Выберите файл:");
     QLineEdit *inputFileLineEdit = new QLineEdit;
     QPushButton *inputFileButton = new QPushButton("Обзор...");
@@ -90,23 +95,23 @@ int main(int argc, char *argv[])
 
     QPushButton *convertButton = new QPushButton("Преобразовать");
 
-    // Создаем переключатели режимов
+    //переключатели режимов
     QRadioButton *imageToBinaryRadioButton = new QRadioButton("Изображение в двоичный код");
     QRadioButton *binaryToImageRadioButton = new QRadioButton("Двоичный код в изображение");
 
-    // Обработчик события для кнопки "Обзор" файла
+    //"Обзор" файла
     QObject::connect(inputFileButton, &QPushButton::clicked, [&] {
         QString filePath = QFileDialog::getOpenFileName(nullptr, "Выберите файл", QString(), "Все файлы (*)");
         inputFileLineEdit->setText(filePath);
     });
 
-    // Обработчик события для кнопки "Обзор" папки
+    //"Обзор" папки
     QObject::connect(outputFileButton, &QPushButton::clicked, [&] {
         QString folderPath = QFileDialog::getExistingDirectory(nullptr, "Выберите папку", QString());
         outputFileLineEdit->setText(folderPath);
     });
 
-    // Обработчик события для кнопки "Преобразовать"
+    //"Преобразовать"
     QObject::connect(convertButton, &QPushButton::clicked, [&] {
         if (mode == ImageToBinary) {
             QString imagePath = inputFileLineEdit->text();
@@ -128,7 +133,7 @@ int main(int argc, char *argv[])
         mode = BinaryToImage;
     });
 
-    // Создаем макет для размещения виджетов
+    //макет для размещения виджетов
     QVBoxLayout *layout = new QVBoxLayout;
     layout->addWidget(inputLabel);
     layout->addWidget(inputFileLineEdit);
@@ -140,7 +145,7 @@ int main(int argc, char *argv[])
     layout->addWidget(binaryToImageRadioButton);
     layout->addWidget(convertButton);
 
-    // Создаем центральный виджет и устанавливаем макет
+    //центральный виджет и устанавливаем макет
     QWidget *centralWidget = new QWidget;
     centralWidget->setLayout(layout);
     window.setCentralWidget(centralWidget);
